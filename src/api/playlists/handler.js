@@ -45,7 +45,7 @@ class PlaylistsHandler {
       console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }
@@ -72,14 +72,14 @@ class PlaylistsHandler {
       console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }
 
   async deletePlaylistHandler(request, h) {
     try {
-      const { playlistId } = request.params;
+      const { id: playlistId } = request.params;
       const { id: credentialId } = request.auth.credentials;
 
       await this._service.verifyPlaylistOwner(playlistId, credentialId);
@@ -88,7 +88,7 @@ class PlaylistsHandler {
       return h.response({
         status: 'success',
         message: 'Playlist berhasil dihapus',
-      }).coded(200);
+      }).code(200);
     } catch (error) {
       if (error instanceof ClientError) {
         return h.response({
@@ -100,7 +100,7 @@ class PlaylistsHandler {
       console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }
@@ -109,9 +109,9 @@ class PlaylistsHandler {
     try {
       this._validator.validationPostSongPlaylistPayload(request.payload);
 
-      const { songId } = request.payload;
-      const { playlistId } = request.params;
+      const { id: playlistId } = request.params;
       const { id: credentialId } = request.auth.credentials;
+      const { songId } = request.payload;
 
       await this._songsService.getSongById(songId);
       await this._service.verifyPlaylistAccess(playlistId, credentialId);
@@ -132,23 +132,30 @@ class PlaylistsHandler {
       console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }
 
   async getPlaylistSongHandler(request, h) {
     try {
-      const { playlistId } = request.params;
+      const { id: playlistId } = request.params;
       const { id: credentialId } = request.auth.credentials;
 
       await this._service.verifyPlaylistAccess(playlistId, credentialId);
+
+      const detailPlaylist = await this._service.getDetailPlaylist(playlistId);
       const playlistSongs = await this._service.getSongPlaylist(playlistId);
 
       return {
         status: 'success',
         data: {
-          playlistSongs,
+          playlist: {
+            id: detailPlaylist.id,
+            name: detailPlaylist.name,
+            username: detailPlaylist.username,
+            songs: playlistSongs,
+          },
         },
       };
     } catch (error) {
@@ -162,7 +169,7 @@ class PlaylistsHandler {
       console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }
@@ -171,17 +178,17 @@ class PlaylistsHandler {
     try {
       this._validator.validationPostSongPlaylistPayload(request.payload);
 
-      const { playlistId } = request.params;
-      const { songId } = request.payload;
+      const { id: playlistId } = request.params;
       const { id: credentialId } = request.auth.credentials;
+      const { songId } = request.payload;
 
       await this._service.verifyPlaylistAccess(playlistId, credentialId);
-      await this._service.deleteSongPlaylist(playlistId, songId);
+      await this._service.deleteSongPlaylist(playlistId, songId, credentialId);
 
-      return {
+      return h.response({
         status: 'success',
         message: 'Lagu berhasil dihapus',
-      };
+      }).code(200);
     } catch (error) {
       if (error instanceof ClientError) {
         return h.response({
@@ -190,9 +197,10 @@ class PlaylistsHandler {
         }).code(error.statusCode);
       }
 
+      console.error(error);
       return h.response({
         status: 'error',
-        message: error.message,
+        message: 'Maaf, terjadi kegagalan pada server kami',
       }).code(500);
     }
   }

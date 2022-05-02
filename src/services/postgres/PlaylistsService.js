@@ -27,19 +27,21 @@ class PlaylistsService {
     return result.rows[0].id;
   }
 
-  async getPlaylists(playlistId) {
+  async getPlaylists(owner) {
     const query = {
       text: `SELECT playlists.id, playlists.name, users.username FROM playlists
       LEFT JOIN collaborations ON playlists.id = collaborations.playlist_id 
       LEFT JOIN users ON playlists.owner = users.id
       WHERE playlists.owner = $1 OR collaborations.user_id = $1`,
-      values: [playlistId],
+      values: [owner],
     };
     const result = await this._pool.query(query);
 
     if (!result.rows.length) {
       throw new NotFoundError('Playlist gagal ditemukan');
     }
+
+    return result.rows;
   }
 
   async deletePlaylist(id) {
@@ -68,10 +70,26 @@ class PlaylistsService {
     }
   }
 
+  async getDetailPlaylist(playlistId) {
+    const query = {
+      text: `SELECT playlists.id, playlists.name, users.username FROM playlists
+      LEFT JOIN users ON playlists.owner = users.id
+      WHERE playlists.id = $1`,
+      values: [playlistId],
+    };
+    const result = await this._pool.query(query);
+
+    if (!result.rows.length) {
+      throw new NotFoundError('Playlist gagal ditemukan');
+    }
+
+    return result.rows[0];
+  }
+
   async getSongPlaylist(playlistId) {
     const query = {
       text: `SELECT songs.id, songs.title, songs.performer
-      FROM playlist_songs
+      FROM playlistsongs
       LEFT JOIN songs ON playlistsongs.song_id = songs.id
       WHERE playlist_id = $1`,
       values: [playlistId],
@@ -83,7 +101,7 @@ class PlaylistsService {
 
   async deleteSongPlaylist(playlistId, songId) {
     const query = {
-      text: 'DELETE FROM playlistsongs WHERE playlist_id = $1 AND song_id = $2',
+      text: 'DELETE FROM playlistsongs WHERE playlist_id = $1 AND song_id = $2 RETURNING id',
       values: [playlistId, songId],
     };
     const result = await this._pool.query(query);
@@ -91,6 +109,8 @@ class PlaylistsService {
     if (!result.rows.length) {
       throw new InvariantError('Lagu gagal dihapus');
     }
+
+    return result.rows;
   }
 
   async verifyPlaylistOwner(id, owner) {
@@ -103,23 +123,22 @@ class PlaylistsService {
     if (!result.rows.length) {
       throw new NotFoundError('Playlist tidak ditemukan');
     }
-    const playlist = result.rows[0];
 
-    if (playlist.owner !== owner) {
+    if (result.rows[0].owner !== owner) {
       throw new AuthorizationError('Anda tidak berhak mengakses resource ini');
     }
   }
 
-  async verifyPlaylistAccess(playlistId, userId) {
+  async verifyPlaylistAccess(id, userId) {
     try {
-      await this.verifyPlaylistOwner(playlistId, userId);
+      await this.verifyPlaylistOwner(id, userId);
     } catch (error) {
       if (error instanceof NotFoundError) {
         throw error;
       }
 
       try {
-        await this._collaborationsService.verifyCollaborator(playlistId, userId);
+        await this._collaborationsService.verifyCollaborator(id, userId);
       } catch {
         throw error;
       }
